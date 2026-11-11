@@ -1,0 +1,13 @@
+dk-dsh-skills-mcp-manager combines the following installed distributions:
+
+@michengai/dsh-skills-manager 1.4.1 — MichengAI
+https://github.com/MichengAI/dsh-skills-manager
+Apache-2.0; full license in vendor/skills/LICENSE.
+
+@oh-agent/dsh-mcp-manager 0.1.6
+https://github.com/wangbobo-coder/dsh-mcp-manager
+MIT; full copyright and license in vendor/mcp/LICENSE.
+
+Vendor files are unchanged. build.js adapts client initialization in the generated
+client.js to expose both pages under a single settings entry. Backend composition
+and unified navigation are additions by this project.
