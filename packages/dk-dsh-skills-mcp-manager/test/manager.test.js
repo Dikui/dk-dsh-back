@@ -19,10 +19,10 @@ test('Skills and MCP headings have no introductory paragraph', async () => {
 
 test('backend preserves independent plugin lifecycles and configuration', () => {
   const calls = [];
-  const config = { skills: { gitTimeoutMs: 1000 }, mcp: { backupsToKeep: 30 } };
+  const config = { skills: { gitTimeoutMs: 1000, filesystem: { watch: false } }, mcp: { backupsToKeep: 30 } };
   apply({ plugin: (...args) => calls.push(args) }, config);
   assert.deepEqual(calls.map(([plugin, options]) => [plugin.name, options]), [
-    ['skills-manager', config.skills], ['mcp-manager', config.mcp],
+    ['dsh-skills-manager-recursive', config.skills.filesystem], ['skills-manager', config.skills], ['mcp-manager', config.mcp],
   ]);
   assert.ok(calls.every(([plugin]) => typeof plugin.apply === 'function' && plugin.inject.length));
 });
@@ -32,6 +32,7 @@ test('built client registers only unified entry, keeps both pages and cleans up'
   let bundle;
   vm.runInNewContext(source, { window: { __ModuleLoader__: { load: value => { bundle = value; } } }, console });
   assert.equal(bundle.id, 'dk-dsh-skills-mcp-manager');
+  assert.ok(source.includes('n.sourceReadOnly!==!0&&s.push({value:"trash"'));
   let active = 'skills';
   const react = {
     createElement: (type, props, ...children) => ({ type, props, children }),

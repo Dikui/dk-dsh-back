@@ -1409,74 +1409,9 @@ async function isDirectoryLink(path) {
   if (process.platform !== "win32" || !st.isDirectory()) return false;
   return await readlinkOrNull(path) !== null;
 }
-async function linkedDirectoryBundle(directory, name) {
-  const bundlePath = entryPath(directory, name);
-  if (bundlePath === null || !await isDirectoryLink(bundlePath)) return null;
-  const docPath = join(bundlePath, "SKILL.md");
-  const docStat = await lstatOrNull(docPath);
-  if (!docStat?.isFile() || docStat.isSymbolicLink()) return null;
-  return {
-    kind: "bundle",
-    docPath,
-    entryPath: bundlePath,
-    realDocPath: await fs.realpath(docPath),
-    realEntryPath: await fs.realpath(bundlePath),
-    linked: true
-  };
-}
 async function resolveEntry(root, name) {
-  const definition = rootDefinition(root);
-  if (definition && (!definition.mutable || definition.key === "agents")) {
-    if (!validDiscoveryName(name)) return null;
-    return (await discoverReadonlyEntries(definition.path)).entries.find(
-      (entry) => entry.name === name
-    ) || null;
-  }
-  const directory = definition ? definition.path : root;
-  try {
-    const bundlePath = entryPath(directory, name);
-    if (bundlePath === null) return null;
-    const rootPath = resolve(directory);
-    const rootStat = await lstatOrNull(rootPath);
-    if (!rootStat || !rootStat.isDirectory() || rootStat.isSymbolicLink())
-      return null;
-    const rootReal = await resolvedPath(rootPath);
-    const linked = await linkedDirectoryBundle(directory, name);
-    if (linked) return linked;
-    const bundleStat = await lstatOrNull(bundlePath);
-    if (bundleStat && bundleStat.isDirectory() && !bundleStat.isSymbolicLink()) {
-      const bundleDoc = join(bundlePath, "SKILL.md");
-      const docStat = await lstatOrNull(bundleDoc);
-      if (docStat && docStat.isFile() && !docStat.isSymbolicLink() && await isInsideResolvedRoot(rootReal, bundleDoc)) {
-        return {
-          kind: "bundle",
-          docPath: bundleDoc,
-          entryPath: bundlePath,
-          realDocPath: await fs.realpath(bundleDoc),
-          realEntryPath: await fs.realpath(bundlePath),
-          linked: false
-        };
-      }
-    }
-    const flatDoc = resolve(rootPath, `${name}.md`);
-    if (!isSameOrDescendant(rootPath, flatDoc) || rootPath === flatDoc)
-      return null;
-    const flatStat = await lstatOrNull(flatDoc);
-    if (flatStat && flatStat.isFile() && !flatStat.isSymbolicLink() && await isInsideResolvedRoot(rootReal, flatDoc)) {
-      const realDocPath = await fs.realpath(flatDoc);
-      return {
-        kind: "flat",
-        docPath: flatDoc,
-        entryPath: flatDoc,
-        realDocPath,
-        realEntryPath: realDocPath,
-        linked: false
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  if (!validDiscoveryName(name)) return null;
+  return (await scanEntries(root, { metadataOnly: true })).entries.find(entry => entry.name === name) || null;
 }
 function isValidDeclaredName(name) {
   if (typeof name !== "string") return false;
@@ -1541,87 +1476,22 @@ function entryOf(name, kind, docPath, doc) {
 }
 async function scanEntries(root, options = {}) {
   const definition = rootDefinition(root);
-  if (definition && (!definition.mutable || definition.key === "agents")) {
-    const discovered = await discoverReadonlyEntries(definition.path);
-    if (options.metadataOnly) return discovered;
-    const entries2 = [];
-    for (const entry of discovered.entries) {
-      try {
-        entries2.push({
-          ...entryOf(
-            entry.name,
-            entry.kind,
-            entry.docPath,
-            parseSkillDoc(await fs.readFile(entry.realDocPath, "utf8"))
-          ),
-          ...entry
-        });
-      } catch {
-      }
-    }
-    return { ...discovered, entries: entries2 };
-  }
   const directory = definition ? definition.path : root;
-  const rootStat = await lstatOrNull(resolve(directory));
-  if (!rootStat || !rootStat.isDirectory() || rootStat.isSymbolicLink())
-    return { exists: false, entries: [] };
-  let items;
-  try {
-    items = await fs.readdir(directory, { withFileTypes: true });
-  } catch {
-    return { exists: false, entries: [] };
+  if (!definition || definition.mutable && definition.key !== "agents") {
+    const stat = await lstatOrNull(resolve(directory));
+    if (!stat?.isDirectory() || stat.isSymbolicLink()) return { exists: false, entries: [] };
   }
-  const byName = /* @__PURE__ */ new Map();
-  const rootReal = await resolvedPath(directory);
-  for (const it of items) {
+  const discovered = await discoverReadonlyEntries(directory);
+  if (options.metadataOnly) return discovered;
+  const entries = [];
+  for (const entry of discovered.entries) {
     try {
-      if (it.isSymbolicLink() || process.platform === "win32" && it.isDirectory()) {
-        const linked = await linkedDirectoryBundle(directory, it.name);
-        if (linked) {
-          const doc = options.metadataOnly ? { map: {}, hasFrontmatter: false } : parseSkillDoc(await fs.readFile(linked.realDocPath, "utf8"));
-          byName.set(it.name, {
-            ...entryOf(it.name, "bundle", linked.docPath, doc),
-            ...linked
-          });
-          continue;
-        }
-        if (it.isSymbolicLink()) continue;
-      }
-      if (it.isDirectory() && entryPath(directory, it.name) !== null) {
-        const docPath = join(directory, it.name, "SKILL.md");
-        const st = await lstatOrNull(docPath);
-        if (!st || !st.isFile() || st.isSymbolicLink() || !await isInsideResolvedRoot(rootReal, docPath))
-          continue;
-        const doc = options.metadataOnly ? { map: {}, hasFrontmatter: false } : parseSkillDoc(await fs.readFile(docPath, "utf8"));
-        byName.set(it.name, {
-          ...entryOf(it.name, "bundle", docPath, doc),
-          entryPath: join(directory, it.name),
-          realDocPath: await fs.realpath(docPath),
-          realEntryPath: await fs.realpath(join(directory, it.name)),
-          linked: false
-        });
-      } else if (it.isFile() && it.name.toLowerCase().endsWith(".md") && it.name.toLowerCase() !== "skill.md" && entryPath(directory, it.name.slice(0, -3)) !== null) {
-        const skillName = it.name.slice(0, -3);
-        if (byName.has(skillName)) continue;
-        const docPath = join(directory, it.name);
-        if (!await isInsideResolvedRoot(rootReal, docPath)) continue;
-        const doc = options.metadataOnly ? { map: {}, hasFrontmatter: false } : parseSkillDoc(await fs.readFile(docPath, "utf8"));
-        const realDocPath = await fs.realpath(docPath);
-        byName.set(skillName, {
-          ...entryOf(skillName, "flat", docPath, doc),
-          entryPath: docPath,
-          realDocPath,
-          realEntryPath: realDocPath,
-          linked: false
-        });
-      }
+      entries.push({ ...entryOf(entry.name, entry.kind, entry.docPath,
+        parseSkillDoc(await fs.readFile(entry.realDocPath, "utf8"))), ...entry });
     } catch {
     }
   }
-  const entries = [...byName.values()].sort(
-    (a, b) => a.name.localeCompare(b.name)
-  );
-  return { exists: true, entries };
+  return { ...discovered, entries };
 }
 async function scanDeduplicatedRoots(roots = userRoots(), options = {}) {
   const results = await Promise.all(
@@ -2311,6 +2181,11 @@ async function setCategoryEnabled(key, categoryId, enabled, log, options = {}) {
       log(enabled ? "policy-enable" : "policy-disable", `${enabled ? "\u542F\u7528" : "\u505C\u7528"} ${ready.rootKey}/${name}\uFF08\u672C\u5730\u7B56\u7565\uFF0C\u6E90\u6587\u4EF6\u4E0D\u53D8\uFF09`);
   return { root: ready.rootKey, categoryId: categoryId || null, enabled: enabled === true, changed: changedNames.length, skipped };
 }
+async function isNamespaceDirectory(path) {
+  if (!(await lstatOrNull(path))?.isDirectory()) return false;
+  const doc = await lstatOrNull(join(path, "SKILL.md"));
+  return !doc?.isFile() || doc.isSymbolicLink();
+}
 async function safeExistingEntryPaths(root, name) {
   const paths = [];
   const bundle = entryPath(root, name);
@@ -2435,6 +2310,10 @@ async function deleteSkillImpl(root, name, log, options = {}) {
     };
   const targets = (await safeExistingEntryPaths(definition.path, name)).filter((target) => !options.repositoryEntryOnly || target.fileName === name);
   if (!targets.length) return { ok: false, error: `\u6280\u80FD\u4E0D\u5B58\u5728: ${name}`, code: "error.skill.notFound", params: { name } };
+  for (const target of targets) {
+    if (await isNamespaceDirectory(target.path))
+      return { ok: false, code: "error.skill.namespace", error: `分类目录不能作为技能删除: ${target.path}`, params: { path: target.path } };
+  }
   if (definition.key === "agents") {
     for (const target of targets) {
       if ((await lstatOrNull(target.path))?.isSymbolicLink())
@@ -2842,6 +2721,8 @@ async function copyToTemporary(source, target, isDir) {
 }
 async function replaceWithCopy(source, dest, isDir, existing = []) {
   for (const path of [dest, ...existing]) {
+    if (await isNamespaceDirectory(path))
+      throw codedError(`分类目录不能被技能覆盖: ${path}`, "error.import.namespace", { path });
     if (await isDirectoryLink(path))
       throw codedError(`\u76EE\u5F55\u94FE\u63A5\u4E0D\u80FD\u5220\u9664\u6216\u8986\u76D6: ${path}`, "error.skill.linked", { path });
   }
@@ -3368,7 +3249,7 @@ async function skillDetail(key, name, options = {}) {
     frontmatter: summary.hasFrontmatter ? Object.fromEntries(Object.entries(doc.map)) : null,
     diagnostics: summary.diagnostics,
     loadable: summary.loadable,
-    sourceReadOnly: !root.mutable || entry.linked === true
+    sourceReadOnly: !root.mutable || entry.linked === true || entryPath(root.path, entry.name) === null
   };
 }
 async function listProviderCandidates(options = {}) {
@@ -3418,14 +3299,14 @@ async function listProviderCandidates(options = {}) {
       },
       resourceBase: {
         kind: "directory",
-        path: entry.kind === "bundle" ? entry.realEntryPath : root.path
+        path: entry.kind === "bundle" ? entry.realEntryPath : dirname(entry.realDocPath)
       },
       path: entry.docPath,
       metadata: {
         dshSkillsManager: {
           root: root.key,
-          readOnly: !root.mutable || entry.linked === true,
-          sourceReadOnly: !root.mutable || entry.linked === true,
+          readOnly: !root.mutable || entry.linked === true || entryPath(root.path, entry.name) === null,
+          sourceReadOnly: !root.mutable || entry.linked === true || entryPath(root.path, entry.name) === null,
           policyOnly
         }
       }
@@ -3637,7 +3518,8 @@ async function state(options = {}) {
         path: e.docPath,
         categoryId: policyResult.state.categoryMembers[root.key]?.[e.name] || null,
         customNote: policyResult.state.customNotes?.[root.key]?.[e.name] || null,
-        linked: e.linked === true
+        linked: e.linked === true,
+        sourceReadOnly: !root.mutable || e.linked === true || entryPath(root.path, e.name) === null
       });
       all.push({
         root,

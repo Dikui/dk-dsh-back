@@ -8,6 +8,8 @@ Apache-2.0; full license in vendor/skills/LICENSE.
 https://github.com/wangbobo-coder/dsh-mcp-manager
 MIT; full copyright and license in vendor/mcp/LICENSE.
 
-Vendor files are unchanged. build.js adapts client initialization in the generated
-client.js to expose both pages under a single settings entry. Backend composition
-and unified navigation are additions by this project.
+The Skills core and discovery scanner are modified for shared recursive discovery,
+policy access, filesystem access checks, and namespace-directory write protection.
+The former dk-recursive-skills provider is now included as recursive-skills.js. build.js adapts the generated client
+to expose both pages under one settings entry and hide unsupported nested deletes.
+Backend composition and unified navigation are additions by this project.
