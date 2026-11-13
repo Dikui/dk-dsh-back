@@ -1,6 +1,6 @@
 {
   "name": "dk-dsh-skills-mcp-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "统一管理 DSH Skills 与 MCP，内置递归技能发现",
   "type": "module",
   "license": "Apache-2.0 AND MIT",
@@ -28,11 +28,11 @@
     "fflate": "0.8.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-skill-filesystem": "0.2.2-rc.2"
+    "@deepseek-ai/dsh-skill-filesystem": "0.2.2-rc.3"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.2.2-rc.2"
+    "dsh": "0.2.2-rc.3"
   },
   "dsh": {
     "manifestVersion": 1,

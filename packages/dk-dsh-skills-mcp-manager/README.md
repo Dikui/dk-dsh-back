@@ -5,7 +5,7 @@
 ## 安装与切换
 
 1. 在 DSH 插件管理中停用旧的 `dk-recursive-skills`、`@michengai/dsh-skills-manager` 和 `@oh-agent/dsh-mcp-manager`（保留其数据和技能文件）。不要同时启用，避免重复扫描、注册 API、工具和技能提供器。
-2. 上传本项目生成的 `dk-dsh-skills-mcp-manager-0.2.1.tgz` 并升级/启用同名插件。仅保留这一个插件启用。
+2. 上传本项目生成的 `dk-dsh-skills-mcp-manager-0.2.2.tgz` 并升级/启用同名插件。仅保留这一个插件启用。
 3. 刷新 GUI，在设置中打开 **Skills & MCP**。原 Skills 侧栏入口及入口位置选项统一收敛为此设置入口。
 4. 回滚：停用新版本，恢复旧 Manager 安装包并重新启用独立 `dk-recursive-skills`；旧版各插件用户也可恢复原来的插件组合。
 
@@ -43,7 +43,7 @@ npm test
 npm pack --workspace dk-dsh-skills-mcp-manager
 ```
 
-目标宿主：DSH 0.2.2-rc.2，peer 版本精确锁定。递归模块依赖官方导出的 `FileSystemSkillProvider.roots` 和 `watchManager` 实现钩子；升级宿主必须重新验证。`vendor/` 基于安装版本并保留许可证；Skills 后端包含本项目的嵌套发现与分类目录保护修复；`build.js` 适配客户端入口、移除上游反馈按钮并使用宿主主按钮配色，`client-main.js` 提供统一导航。升级上游版本时必须重新验证构建锚点及 GUI。
+目标宿主：DSH 0.2.2-rc.3，peer 版本精确锁定。递归模块依赖官方导出的 `FileSystemSkillProvider.roots` 和 `watchManager` 实现钩子；升级宿主必须重新验证。`vendor/` 基于安装版本并保留许可证；Skills 后端包含本项目的嵌套发现与分类目录保护修复；`build.js` 适配客户端入口、移除上游反馈按钮并使用宿主主按钮配色，`client-main.js` 提供统一导航。升级上游版本时必须重新验证构建锚点及 GUI。
 
 自动检查覆盖后端组合/配置、客户端单入口注册、分页切换、上下文透传和卸载清理；不替代真实宿主中的端到端操作验收。此包未自动替换当前运行中的插件。
 
